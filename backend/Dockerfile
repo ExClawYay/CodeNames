@@ -1,21 +1,21 @@
-FROM openjdk:17-jdk-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy Maven files
-COPY pom.xml .
-COPY .mvn .mvn
+# Copy package files
+COPY package*.json ./
 
-# Build the application
-RUN apt-get update && apt-get install -y maven && \
-    mvn clean package -DskipTests && \
-    apt-get remove -y maven && apt-get clean
+# Install dependencies
+RUN npm ci
 
-# Copy the JAR
-COPY target/*.jar app.jar
+# Copy source
+COPY . .
+
+# Build TypeScript
+RUN npm run build
 
 # Expose port
 EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Start server
+CMD ["npm", "start"]

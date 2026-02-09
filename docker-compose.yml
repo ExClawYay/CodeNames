@@ -9,11 +9,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - FIREBASE_CREDENTIALS=${FIREBASE_CREDENTIALS}
-      - SERVER_PORT=8080
-    volumes:
-      - ./backend/logs:/app/logs
+      - NODE_ENV=production
+      - PORT=8080
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL}
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
     restart: unless-stopped
     networks:
       - codenames-net

@@ -73,18 +73,18 @@ CodeNames/
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Java 17+, Spring Boot |
+| **Backend** | Node.js 20+, Express, TypeScript |
 | **Frontend** | TypeScript, React, Vite |
+| **Real-time** | WebSocket (ws) |
 | **Database** | Firebase Firestore |
-| **Testing** | JUnit 5 (backend), Vitest (frontend) |
-| **UI Design** | Draw.io (diagrams) |
+| **Testing** | Vitest (both) |
 | **Deployment** | Docker, Nginx, VPS |
 
 ## Quick Start
 
 ### Prerequisites
-- Java 17+
-- Node.js 18+
+- Node.js 20+
+- npm/yarn
 - Firebase project & credentials
 
 ### Development
@@ -92,8 +92,10 @@ CodeNames/
 1. **Backend Setup**
    ```bash
    cd backend
-   mvn clean install
-   mvn spring-boot:run
+   cp .env.example .env
+   # Add Firebase credentials to .env
+   npm install
+   npm run dev
    ```
 
 2. **Frontend Setup**
@@ -104,14 +106,16 @@ CodeNames/
    ```
 
 3. **Firebase Setup**
-   - Copy your Firebase credentials to `frontend/.env.local`
-   - Initialize Firestore & Storage rules from `firebase/`
+   - Create `.env.local` in frontend with:
+   ```
+   VITE_API_URL=http://localhost:8080/api
+   ```
 
 ### Testing
 
 ```bash
 # Backend
-cd backend && mvn test
+cd backend && npm test
 
 # Frontend
 cd frontend && npm test
