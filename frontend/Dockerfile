@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -14,8 +14,19 @@ COPY . .
 # Build
 RUN npm run build
 
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install serve to run the production build
+RUN npm install -g serve
+
+# Copy built app from builder
+COPY --from=builder /app/dist ./dist
+
 # Expose port
 EXPOSE 3000
 
-# Run dev server (or use serve for production)
-CMD ["npm", "run", "dev"]
+# Run production server
+CMD ["serve", "-s", "dist", "-l", "3000"]

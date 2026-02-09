@@ -134,7 +134,22 @@ cd frontend && npm test
 
 ## Deployment
 
-See `deployment/README.md` for VPS setup and `docs/DEPLOYMENT.md` for detailed instructions.
+**Super Easy:** Everything runs in Docker Compose!
+
+```bash
+# 1. Clone & configure
+git clone https://github.com/ExClawYay/CodeNames.git
+cd CodeNames
+cp deployment/.env.example .env
+# Edit .env with Firebase credentials
+
+# 2. Start everything
+docker-compose up -d
+
+# That's it! Open http://localhost
+```
+
+See `DOCKER.md` for complete deployment guide, or `docs/DEPLOYMENT.md` for detailed VPS setup.
 
 ## Contributing
 
