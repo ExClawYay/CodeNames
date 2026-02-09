@@ -1,0 +1,39 @@
+# Backend Configuration
+spring:
+  application:
+    name: codenames-duet
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# Firebase Configuration
+firebase:
+  credentials: ${FIREBASE_CREDENTIALS:classpath:firebase-credentials.json}
+  database-url: ${FIREBASE_DATABASE_URL}
+
+# WebSocket Configuration
+websocket:
+  endpoint: /api/ws
+  message-broker: /topic
+  allowed-origins: "*"
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.codenames: DEBUG
+  file:
+    name: logs/codenames.log
+    max-size: 10MB
+    max-history: 10
