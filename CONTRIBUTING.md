@@ -13,8 +13,8 @@ Thank you for your interest in contributing! Please follow these guidelines.
 2. **Backend setup**
    ```bash
    cd backend
-   mvn clean install
-   mvn spring-boot:run
+   npm install
+   npm run dev
    ```
 
 3. **Frontend setup**
@@ -51,22 +51,25 @@ Emojis:
 
 ## Code Standards
 
-### Java
-- Use Google Java Style Guide
-- Write unit tests for new features
-- Lombok for getters/setters (use `@Data`, `@NoArgsConstructor`)
+### TypeScript/Node.js (Backend)
+- Use strict TypeScript (no `any`)
+- Functional services with clear interfaces
+- ESLint config included
+- Error handling in all endpoints
+- WebSocket validation for all messages
 
-### TypeScript/React
+### TypeScript/React (Frontend)
 - Use functional components with hooks
 - ESLint strict mode
 - Props types in separate `.ts` file
 - One component per file
+- Use React Router for navigation
 
 ### Testing
 
 ```bash
 # Backend
-cd backend && mvn test
+cd backend && npm test
 
 # Frontend
 cd frontend && npm test
@@ -97,7 +100,7 @@ When reporting bugs, include:
 - Expected behavior
 - Actual behavior
 - Logs/screenshots if applicable
-- Environment info (OS, browser, Java version, etc.)
+- Environment info (OS, browser, Node.js version, etc.)
 
 ## Feature Requests
 
