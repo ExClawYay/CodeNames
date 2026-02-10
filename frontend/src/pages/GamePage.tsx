@@ -18,6 +18,7 @@ export const GamePage: React.FC = () => {
   const [clueWord, setClueWord] = useState('')
   const [clueNumber, setClueNumber] = useState(1)
   const [isMyTurn, setIsMyTurn] = useState(false)
+  const [lastOutcome, setLastOutcome] = useState<string | null>(null)
 
   // Connect to WebSocket
   useEffect(() => {
@@ -50,7 +51,6 @@ export const GamePage: React.FC = () => {
 
     websocket.onclose = () => {
       console.log('WebSocket closed')
-      setError('Connection closed')
     }
 
     setWs(websocket)
@@ -65,11 +65,21 @@ export const GamePage: React.FC = () => {
     switch (data.type) {
       case 'ROOM_STATE':
         setRoom(data.data)
-        checkIfMyTurn(data.data)
+        checkIfMyTurn(data.data, playerId)
+        setTimeLeft(30)
+        setLastOutcome(null)
+        break
+
+      case 'CLUE_SUBMITTED':
+        setRoom(data.room)
+        setClueWord('')
+        setTimeLeft(30)
         break
 
       case 'GUESS_RESULT':
         setRoom(data.room)
+        setLastOutcome(data.outcome)
+
         if (data.gameStatus === 'FINISHED') {
           setTimeout(() => {
             navigate(`/results/${roomCode}`)
@@ -77,29 +87,29 @@ export const GamePage: React.FC = () => {
         }
         break
 
-      case 'CLUE_SUBMITTED':
+      case 'TURN_SWITCHED':
         setRoom(data.room)
+        checkIfMyTurn(data.room, playerId)
+        setTimeLeft(30)
+        setLastOutcome(null)
         setClueWord('')
         break
 
-      case 'TURN_SWITCHED':
-        setRoom(data.room)
-        checkIfMyTurn(data.room)
-        setTimeLeft(30)
-        break
-
       case 'GAME_FINISHED':
-        setRoom((prev) => prev ? { ...prev, result: data.result } : null)
+        setRoom(data.room)
         setTimeout(() => {
           navigate(`/results/${roomCode}`)
         }, 1000)
         break
-    }
-  }, [roomCode, navigate])
 
-  const checkIfMyTurn = (gameRoom: GameRoom) => {
-    const player = gameRoom.players[playerId]
-    setIsMyTurn(gameRoom.activePlayerId === playerId)
+      case 'ERROR':
+        setError(data.message)
+        break
+    }
+  }, [roomCode, playerId, navigate])
+
+  const checkIfMyTurn = (gameRoom: GameRoom, pId: string) => {
+    setIsMyTurn(gameRoom.activePlayerId === pId)
   }
 
   // Timer logic
@@ -109,9 +119,11 @@ export const GamePage: React.FC = () => {
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          // Time's up, move to next turn
+          // Time's up
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'NEXT_TURN' }))
+            if (room.currentPhase === 'GUESS') {
+              ws.send(JSON.stringify({ type: 'NEXT_TURN' }))
+            }
           }
           return 30
         }
@@ -124,7 +136,10 @@ export const GamePage: React.FC = () => {
 
   const handleGuess = (cardPosition: number) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
-    if (!isMyTurn) return
+    if (!isMyTurn || room?.currentPhase !== 'GUESS') return
+
+    const player = room?.players[playerId]
+    if (player?.role !== 'GUESSER') return
 
     ws.send(JSON.stringify({
       type: 'GUESS',
@@ -140,11 +155,37 @@ export const GamePage: React.FC = () => {
       return
     }
 
+    setError('')
     ws.send(JSON.stringify({
       type: 'CLUE',
       clueWord: clueWord.trim().toUpperCase(),
       clueNumber,
     }))
+  }
+
+  const getCardColor = (position: number): string => {
+    const isRevealed = room?.revealedCards.includes(position)
+
+    if (!isRevealed) {
+      return 'bg-blue-500 hover:bg-blue-600'
+    }
+
+    // Card is revealed - check type from current player's keymap
+    const myKeyMap = room?.keyMaps[playerId]
+    const card = myKeyMap?.cards[position]
+
+    if (!card) return 'bg-gray-400'
+
+    switch (card.type) {
+      case 'GREEN':
+        return 'bg-green-500'
+      case 'NEUTRAL':
+        return 'bg-yellow-300'
+      case 'ASSASSIN':
+        return 'bg-black'
+      default:
+        return 'bg-gray-400'
+    }
   }
 
   if (loading) {
@@ -187,13 +228,15 @@ export const GamePage: React.FC = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
               <h1 className="text-2xl font-bold text-gray-800">🎯 CodeNames Duet</h1>
               <p className="text-sm text-gray-600">Room: {roomCode}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-600">Turn {room.currentTurn + 1}/{room.config.maxTurns}</p>
+              <p className="text-sm text-gray-600">
+                Turn {room.currentTurn + 1}/{room.config.maxTurns}
+              </p>
               <p className="text-sm text-gray-600">
                 Errors: {room.config.maxErrors - room.errorsRemaining}/{room.config.maxErrors}
               </p>
@@ -208,44 +251,50 @@ export const GamePage: React.FC = () => {
             <div className="bg-white rounded-lg shadow-lg p-6 mb-4">
               <div className={`grid ${gridColsClass} gap-2 auto-cols-fr mb-4`}>
                 {room.words.map((word, index) => {
-                  const cardType = myPlayer?.role === 'GUESSER' 
-                    ? 'hidden'  // Guesser can't see card types, only words
-                    : 'visible'; // Clue giver sees types
+                  const isRevealed = room.revealedCards.includes(index)
+                  const canGuess = isMyTurn && myPlayer?.role === 'GUESSER' && room.currentPhase === 'GUESS'
 
                   return (
                     <button
                       key={index}
                       onClick={() => handleGuess(index)}
-                      disabled={!isMyTurn || myPlayer?.role !== 'GUESSER'}
+                      disabled={!canGuess || isRevealed}
                       className={`
                         aspect-square flex items-center justify-center rounded-lg
                         font-bold text-center text-sm transition-all
-                        ${isMyTurn && myPlayer?.role === 'GUESSER' && !room.result
-                          ? 'hover:scale-105 hover:shadow-lg cursor-pointer'
-                          : 'cursor-not-allowed'
-                        }
-                        ${room.result
-                          ? 'opacity-75'
-                          : 'opacity-100'
-                        }
-                        bg-blue-400 text-white
+                        ${canGuess && !isRevealed ? 'hover:scale-105 hover:shadow-lg cursor-pointer' : 'cursor-not-allowed'}
+                        ${getCardColor(index)}
+                        text-white
                       `}
                     >
-                      {word}
+                      <span>{word}</span>
                     </button>
                   )
                 })}
               </div>
-              
+
               {/* Timer */}
               <div className="text-center mb-4">
-                <div className="text-4xl font-bold text-gray-800">
+                <div className={`text-4xl font-bold ${timeLeft <= 10 ? 'text-red-600' : 'text-gray-800'}`}>
                   {String(timeLeft).padStart(2, '0')}
                 </div>
                 <p className="text-sm text-gray-600">
                   Phase: {room.currentPhase === 'CLUE' ? '💬 Clue' : '🎯 Guess'}
                 </p>
               </div>
+
+              {/* Last Outcome */}
+              {lastOutcome && (
+                <div className={`text-center font-bold p-2 rounded ${
+                  lastOutcome === 'CORRECT' ? 'bg-green-100 text-green-800' :
+                  lastOutcome === 'NEUTRAL' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {lastOutcome === 'CORRECT' && '✅ Correct!'}
+                  {lastOutcome === 'NEUTRAL' && '⚠️ Wrong - Turn Ended'}
+                  {lastOutcome === 'ASSASSIN' && '💀 Assassin - Game Over'}
+                </div>
+              )}
             </div>
 
             {/* Turn Info */}
@@ -264,7 +313,7 @@ export const GamePage: React.FC = () => {
             {/* Player Info */}
             <div className="bg-white rounded-lg shadow-lg p-4">
               <h3 className="font-bold text-gray-800 mb-3">Players</h3>
-              
+
               <div className="mb-3">
                 <p className="text-sm font-semibold text-gray-700">You</p>
                 <p className="text-gray-600">{nickname}</p>
@@ -272,7 +321,7 @@ export const GamePage: React.FC = () => {
                   {isClueGiver ? '💬 Clue Giver' : '🎯 Guesser'}
                 </p>
                 <p className="text-sm text-green-600 font-semibold mt-1">
-                  ✅ {myPlayer?.correctGuesses || 0}/9 found
+                  ✅ {myPlayer?.correctGuesses || 0}/9
                 </p>
               </div>
 
@@ -284,13 +333,31 @@ export const GamePage: React.FC = () => {
                     {opponent.role === 'CLUE_GIVER' ? '💬 Clue Giver' : '🎯 Guesser'}
                   </p>
                   <p className="text-sm text-green-600 font-semibold mt-1">
-                    ✅ {opponent.correctGuesses || 0}/9 found
+                    ✅ {opponent.correctGuesses || 0}/9
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Clue Input (if clue giver & their turn) */}
+            {/* Clue Display */}
+            {room.clueGiven && (
+              <div className="bg-purple-100 rounded-lg shadow-lg p-4">
+                <h3 className="font-bold text-purple-800 mb-2">Current Clue</h3>
+                <p className="text-2xl font-bold text-purple-600 mb-1">
+                  {room.clueGiven.word}
+                </p>
+                <p className="text-sm text-purple-700">
+                  {room.clueGiven.number} card{room.clueGiven.number > 1 ? 's' : ''}
+                </p>
+                {room.currentPhase === 'GUESS' && (
+                  <p className="text-xs text-purple-600 mt-2">
+                    Guesses: {room.guessesThisTurn}/{room.guessCountAllowed}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Clue Input (if clue giver & their turn & clue phase) */}
             {isMyTurn && isClueGiver && room.currentPhase === 'CLUE' && (
               <div className="bg-white rounded-lg shadow-lg p-4">
                 <h3 className="font-bold text-gray-800 mb-3">Give Clue</h3>

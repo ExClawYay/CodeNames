@@ -1,118 +1,135 @@
-import express from 'express';
-import { WebSocketServer, WebSocket } from 'ws';
-import http from 'http';
-import gameService from '../services/GameService';
-import { GameRoom } from '../models/game';
+import express from 'express'
+import { WebSocketServer, WebSocket } from 'ws'
+import http from 'http'
+import gameService from '../services/GameService'
+import { GameRoom } from '../models/game'
 
 export class WebSocketHandler {
-  private wss: WebSocketServer;
-  private connections: Map<string, Map<string, WebSocket>> = new Map();
+  private wss: WebSocketServer
+  private connections: Map<string, Map<string, WebSocket>> = new Map()
 
   constructor(server: http.Server) {
-    this.wss = new WebSocketServer({ server, path: '/api/ws' });
-    this.setupHandlers();
+    this.wss = new WebSocketServer({ server, path: '/api/ws' })
+    this.setupHandlers()
   }
 
   private setupHandlers(): void {
     this.wss.on('connection', (ws: WebSocket, req) => {
-      const url = new URL(req.url || '', 'http://localhost');
-      const pathParts = url.pathname.split('/').filter(Boolean);
-      
-      // Format: /api/ws/:roomCode/:playerId
-      const roomCode = pathParts[2];
-      const playerId = pathParts[3];
+      const url = new URL(req.url || '', 'http://localhost')
+      const pathParts = url.pathname.split('/').filter(Boolean)
+
+      const roomCode = pathParts[2]
+      const playerId = pathParts[3]
 
       if (!roomCode || !playerId) {
-        ws.close(1008, 'Invalid room code or player ID');
-        return;
+        ws.close(1008, 'Invalid room code or player ID')
+        return
       }
 
-      console.log(`[WS] Player ${playerId} connected to room ${roomCode}`);
+      console.log(`[WS] Player ${playerId} connected to room ${roomCode}`)
 
       // Store connection
       if (!this.connections.has(roomCode)) {
-        this.connections.set(roomCode, new Map());
+        this.connections.set(roomCode, new Map())
       }
-      this.connections.get(roomCode)!.set(playerId, ws);
+      this.connections.get(roomCode)!.set(playerId, ws)
 
       // Send current game state
-      const room = gameService.getRoom(roomCode);
+      const room = gameService.getRoom(roomCode)
       if (room) {
         ws.send(JSON.stringify({
           type: 'ROOM_STATE',
           data: room,
-        }));
+        }))
       }
 
       // Handle messages
       ws.on('message', (data) => {
         try {
-          const message = JSON.parse(data.toString());
-          this.handleMessage(roomCode, playerId, message);
+          const message = JSON.parse(data.toString())
+          this.handleMessage(roomCode, playerId, message, ws)
         } catch (error) {
-          console.error('[WS] Invalid message:', error);
+          console.error('[WS] Invalid message:', error)
         }
-      });
+      })
 
       // Handle disconnect
       ws.on('close', () => {
-        console.log(`[WS] Player ${playerId} disconnected from room ${roomCode}`);
-        this.connections.get(roomCode)?.delete(playerId);
-
-        const room = gameService.getRoom(roomCode);
-        if (room && room.status === 'ACTIVE') {
-          // Handle disconnection (could mark player as inactive)
-          this.broadcast(roomCode, {
-            type: 'PLAYER_DISCONNECTED',
-            playerId,
-          });
-        }
-      });
+        console.log(`[WS] Player ${playerId} disconnected from room ${roomCode}`)
+        this.connections.get(roomCode)?.delete(playerId)
+      })
 
       ws.on('error', (error) => {
-        console.error('[WS] Connection error:', error);
-      });
-    });
+        console.error('[WS] Connection error:', error)
+      })
+    })
   }
 
-  private handleMessage(roomCode: string, playerId: string, message: any): void {
-    const room = gameService.getRoom(roomCode);
-    if (!room) return;
+  private handleMessage(roomCode: string, playerId: string, message: any, ws: WebSocket): void {
+    const room = gameService.getRoom(roomCode)
+    if (!room) return
 
     switch (message.type) {
-      case 'GUESS':
-        this.handleGuess(roomCode, playerId, message.cardPosition);
-        break;
-
       case 'CLUE':
-        this.handleClue(roomCode, playerId, message.clueWord, message.clueNumber);
-        break;
+        this.handleClue(roomCode, playerId, message.clueWord, message.clueNumber, ws)
+        break
+
+      case 'GUESS':
+        this.handleGuess(roomCode, playerId, message.cardPosition)
+        break
 
       case 'NEXT_TURN':
-        this.handleNextTurn(roomCode, playerId);
-        break;
+        this.handleNextTurn(roomCode, playerId)
+        break
 
       case 'HEARTBEAT':
-        // Keep-alive ping
-        const ws = this.connections.get(roomCode)?.get(playerId);
-        if (ws) {
-          ws.send(JSON.stringify({ type: 'PONG' }));
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'PONG' }))
         }
-        break;
+        break
 
       default:
-        console.warn(`[WS] Unknown message type: ${message.type}`);
+        console.warn(`[WS] Unknown message type: ${message.type}`)
+    }
+  }
+
+  private handleClue(roomCode: string, playerId: string, clueWord: string, clueNumber: number, ws: WebSocket): void {
+    const room = gameService.getRoom(roomCode)
+    if (!room) return
+
+    try {
+      const updatedRoom = gameService.submitClue(roomCode, playerId, clueWord, clueNumber)
+      if (!updatedRoom) return
+
+      // Broadcast clue to both players
+      this.broadcast(roomCode, {
+        type: 'CLUE_SUBMITTED',
+        playerId,
+        clue: updatedRoom.clueGiven,
+        room: updatedRoom,
+      })
+    } catch (error) {
+      // Send error back to clue giver
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'ERROR',
+          message: (error as Error).message,
+        }))
+      }
     }
   }
 
   private handleGuess(roomCode: string, playerId: string, cardPosition: number): void {
-    const result = gameService.processGuess(roomCode, playerId, cardPosition);
-    if (!result) return;
+    const room = gameService.getRoom(roomCode)
+    if (!room) return
 
-    const room = gameService.getRoom(roomCode);
-    if (!room) return;
+    const result = gameService.processGuess(roomCode, playerId, cardPosition)
+    if (!result) return
 
-    // Broadcast guess result to both players
+    const updatedRoom = gameService.getRoom(roomCode)
+    if (!updatedRoom) return
+
+    // Broadcast guess result
     this.broadcast(roomCode, {
       type: 'GUESS_RESULT',
       playerId,
@@ -120,81 +137,62 @@ export class WebSocketHandler {
       outcome: result.outcome,
       cardType: result.cardType,
       gameStatus: result.gameStatus,
-      room,
-    });
+      guessesUsed: result.guessesUsed,
+      guessesAllowed: result.guessesAllowed,
+      room: updatedRoom,
+    })
 
-    // If turn should end, trigger next turn
-    if (result.outcome === 'NEUTRAL' || result.outcome === 'ASSASSIN') {
-      if (result.gameStatus === 'FINISHED') {
-        this.broadcast(roomCode, {
-          type: 'GAME_FINISHED',
-          result: room.result,
-        });
-      } else {
-        // After a brief delay, move to next turn
-        setTimeout(() => {
-          gameService.nextTurn(roomCode);
-          const updatedRoom = gameService.getRoom(roomCode);
+    // Handle game end
+    if (result.gameStatus === 'FINISHED') {
+      this.broadcast(roomCode, {
+        type: 'GAME_FINISHED',
+        result: updatedRoom.result,
+        room: updatedRoom,
+      })
+      return
+    }
+
+    // Handle turn end (neutral card or guess limit reached)
+    const shouldEndTurn = result.outcome === 'NEUTRAL' || gameService.shouldEndTurn(roomCode)
+    if (shouldEndTurn) {
+      setTimeout(() => {
+        const nextRoom = gameService.nextTurn(roomCode)
+        if (nextRoom) {
           this.broadcast(roomCode, {
             type: 'TURN_SWITCHED',
-            room: updatedRoom,
-          });
-        }, 500);
-      }
+            room: nextRoom,
+          })
+        }
+      }, 500)
     }
-  }
-
-  private handleClue(roomCode: string, playerId: string, clueWord: string, clueNumber: number): void {
-    // Validate clue
-    if (!clueWord || typeof clueNumber !== 'number' || clueNumber < 1 || clueNumber > 9) {
-      const ws = this.connections.get(roomCode)?.get(playerId);
-      if (ws) {
-        ws.send(JSON.stringify({
-          type: 'ERROR',
-          message: 'Invalid clue',
-        }));
-      }
-      return;
-    }
-
-    // Broadcast clue to both players
-    this.broadcast(roomCode, {
-      type: 'CLUE_SUBMITTED',
-      playerId,
-      clue: {
-        word: clueWord,
-        number: clueNumber,
-        givenAt: Date.now(),
-      },
-    });
   }
 
   private handleNextTurn(roomCode: string, playerId: string): void {
-    const room = gameService.getRoom(roomCode);
-    if (!room) return;
+    const room = gameService.getRoom(roomCode)
+    if (!room) return
 
-    gameService.nextTurn(roomCode);
-    const updatedRoom = gameService.getRoom(roomCode);
+    const updatedRoom = gameService.nextTurn(roomCode)
+    if (!updatedRoom) return
 
     this.broadcast(roomCode, {
       type: 'TURN_SWITCHED',
       room: updatedRoom,
-    });
+    })
   }
 
   private broadcast(roomCode: string, message: any): void {
-    const connections = this.connections.get(roomCode);
-    if (!connections) return;
+    const connections = this.connections.get(roomCode)
+    if (!connections) return
 
-    const payload = JSON.stringify(message);
+    const payload = JSON.stringify(message)
     connections.forEach((ws) => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(payload);
+        ws.send(payload)
       }
-    });
+    })
   }
 
   public getConnectedPlayers(roomCode: string): number {
-    return this.connections.get(roomCode)?.size || 0;
+    return this.connections.get(roomCode)?.size || 0
   }
 }

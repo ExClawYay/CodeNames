@@ -43,6 +43,13 @@ export interface GameRoom {
   activePlayerId: string;
   turnsRemaining: number;
   errorsRemaining: number;
+  revealedCards: number[];
+  guessesThisTurn: number;
+  guessCountAllowed: number;
+  clueGiven?: {
+    word: string;
+    number: number;
+  };
   config: GameConfig;
   result?: GameResult;
 }
@@ -70,4 +77,18 @@ export interface GuessResult {
   outcome: 'CORRECT' | 'NEUTRAL' | 'ASSASSIN';
   guessedBy: string;
   timestamp: number;
+}
+
+export interface GamePhaseState {
+  phase: 'CLUE' | 'GUESS';
+  activePlayerId: string;
+  currentTurn: number;
+  turnsRemaining: number;
+  errorsRemaining: number;
+  revealedCards: Set<number>;
+  guessesThisTurn: number;
+  clueGiven?: {
+    word: string;
+    number: number;
+  };
 }
