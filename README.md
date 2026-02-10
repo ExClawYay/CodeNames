@@ -23,50 +23,44 @@ CodeNames Duet is a web-based implementation of the classic deduction game. Two 
 
 ```
 CodeNames/
-├── backend/                    # Java backend
+├── backend/                    # Node.js/Express backend
 │   ├── src/
-│   │   └── main/java/
-│   │       └── com/codenames/
-│   │           ├── server/
-│   │           ├── game/
-│   │           ├── model/
-│   │           └── util/
-│   ├── tests/
-│   ├── pom.xml
-│   └── README.md
-├── frontend/                   # TypeScript/React UI
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
+│   │   ├── server.ts
+│   │   ├── routes/
 │   │   ├── services/
-│   │   ├── hooks/
-│   │   └── types/
-│   ├── tests/
+│   │   ├── websocket/
+│   │   ├── models/
+│   │   └── config/
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── vitest.config.ts
-│   └── README.md
-├── firebase/                   # Firebase config & rules
-│   ├── firestore.rules
-│   ├── storage.rules
-│   ├── functions/
-│   └── README.md
+│   └── Dockerfile
+├── frontend/                   # React/TypeScript UI
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── App.tsx
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── Dockerfile
 ├── docs/                       # Project documentation
 │   ├── ARCHITECTURE.md
 │   ├── API.md
 │   ├── GAME_RULES.md
-│   ├── SETUP.md
-│   └── DEPLOYMENT.md
-├── deployment/                 # VPS deployment files
-│   ├── docker-compose.yml
-│   ├── nginx.conf
-│   ├── .env.example
+│   ├── DEPLOYMENT.md
 │   └── README.md
-├── .github/
-│   └── workflows/             # CI/CD pipelines
+├── deployment/                 # Docker & config
+│   ├── nginx.conf
+│   └── .env.example
+├── docker-compose.yml
+├── DOCKER.md
+├── SETUP.md
 ├── .gitignore
 ├── LICENSE
-└── CONTRIBUTING.md
+├── CONTRIBUTING.md
+└── TODO.md
 ```
 
 ## Tech Stack

@@ -13,10 +13,10 @@
 └────────────────────┬────────────────────────────────────────┘
                      │ HTTP + WebSocket
 ┌────────────────────▼────────────────────────────────────────┐
-│                Backend (Java/Spring Boot)                    │
+│                Backend (Node.js/Express)                     │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │ Controllers: RoomController, GameController          │   │
-│  │ Services: GameService, RoomService                   │   │
+│  │ Routes: /rooms, /clue, /guess, /start, /next-turn    │   │
+│  │ Services: GameService                                │   │
 │  │ WebSocket: GameWebSocketHandler                      │   │
 │  │ Models: GameRoom, Player, KeyMap, Card               │   │
 │  └──────────────────────────────────────────────────────┘   │
@@ -45,34 +45,34 @@
 **Components:**
 - `GameBoard.tsx` - 5×5 card grid
 - `Card.tsx` - Individual card with reveal logic
-- `Timer.tsx` - 30-second turn countdown
-- `ClueBox.tsx` - Clue submission form
-- `PlayerPanel.tsx` - Player status & stats
+- `Timer.tsx` - 30-second turn countdown (built into GamePage)
+- `ClueBox.tsx` - Clue submission form (built into GamePage)
+- `PlayerPanel.tsx` - Player status & stats (built into GamePage)
 
 **Services:**
 - `gameAPI.ts` - REST client for backend
-- `firebaseService.ts` - Firestore real-time updates
-- `webSocketService.ts` - WebSocket connection manager
+- `firebaseService.ts` - Firestore real-time updates (placeholder)
+- `webSocketService.ts` - WebSocket connection manager (built into GamePage)
 
 ### Backend Layer
 
-**Controllers:**
-- `RoomController.java` - Create, join, get rooms
-- `GameController.java` - Start game, submit clue/guess
-- `WebSocketController.java` - Handle WebSocket messages
+**Server:**
+- `server.ts` - Main Express app + HTTP/WebSocket server
+
+**Routes:**
+- `routes/rooms.ts` - REST endpoints (create, join, start, clue, guess, next-turn)
 
 **Services:**
-- `GameService.java` - Core game logic (turns, validation, win/loss)
-- `RoomService.java` - Room management
-- `KeyMapService.java` - Generate & manage key maps
-- `WordService.java` - Word selection & validation
+- `services/GameService.ts` - Core game logic (turns, validation, win/loss, clue validation, guess processing)
+
+**WebSocket:**
+- `websocket/WebSocketHandler.ts` - Real-time game updates and messaging
 
 **Models:**
-- `GameRoom.java` - Room state
-- `Player.java` - Player info & role
-- `Card.java` - Individual card representation
-- `KeyMap.java` - Secret mapping for each player
-- `GameConfig.java` - Difficulty settings
+- `models/game.ts` - TypeScript interfaces for all entities
+
+**Config:**
+- `config/firebase.ts` - Firebase Admin SDK initialization
 
 ### Data Layer (Firebase)
 
